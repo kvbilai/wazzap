@@ -157,6 +157,68 @@
     return stub;
   };
 
+  /* ------------------------------------------------------- bildirim sesi */
+  // Windows sesleri bildirimin kendisinde çalar. Uygulamanın kendi sesleri burada, Web Audio ile
+  // üretilir (dosya yok); özel ses dosyası Rust'tan bir kez alınıp önbelleğe konur.
+  const SOUND = { ctx: null, url: null, rev: -1 };
+  function audioCtx() {
+    if (!SOUND.ctx) SOUND.ctx = new (window.AudioContext || window.webkitAudioContext)();
+    if (SOUND.ctx.state === 'suspended') SOUND.ctx.resume().catch(() => {});
+    return SOUND.ctx;
+  }
+  function tone(ctx, out, o) {
+    const osc = ctx.createOscillator();
+    const g = ctx.createGain();
+    osc.type = o.type || 'sine';
+    osc.frequency.setValueAtTime(o.f0, o.t);
+    if (o.f1) osc.frequency.exponentialRampToValueAtTime(o.f1, o.t + o.dur);
+    g.gain.setValueAtTime(0.0001, o.t);
+    g.gain.exponentialRampToValueAtTime(o.gain, o.t + 0.006);
+    g.gain.exponentialRampToValueAtTime(0.0001, o.t + o.dur);
+    osc.connect(g).connect(out);
+    osc.start(o.t);
+    osc.stop(o.t + o.dur + 0.02);
+  }
+  const SYNTH = {
+    pop: (ctx, out, t) => {
+      tone(ctx, out, { f0: 520, f1: 1100, t, dur: 0.09, gain: 0.9 });
+      tone(ctx, out, { f0: 760, f1: 1500, t: t + 0.085, dur: 0.08, gain: 0.6 });
+    },
+    drop: (ctx, out, t) => {
+      tone(ctx, out, { f0: 1500, f1: 480, t, dur: 0.16, gain: 0.9 });
+      tone(ctx, out, { f0: 900, f1: 600, t: t + 0.15, dur: 0.1, gain: 0.25 });
+    },
+    chime: (ctx, out, t) => {
+      [[880, 0, 0.8, 0.6], [1320, 0, 0.6, 0.25], [1175, 0.13, 0.9, 0.55], [1760, 0.13, 0.6, 0.2]]
+        .forEach(([f, d, dur, gain]) => tone(ctx, out, { f0: f, t: t + d, dur, gain }));
+    },
+  };
+  async function playSound(kind) {
+    kind = kind || S.notifySound;
+    const vol = Math.max(0, Math.min(1, (S.notifyVolume == null ? 80 : +S.notifyVolume) / 100));
+    if (SYNTH[kind]) {
+      const ctx = audioCtx();
+      const out = ctx.createGain();
+      out.gain.value = vol;
+      out.connect(ctx.destination);
+      SYNTH[kind](ctx, out, ctx.currentTime + 0.02);
+      return;
+    }
+    if (kind !== 'custom') return;
+    if (!SOUND.url || SOUND.rev !== S.customSoundRev) {
+      const d = await invoke('sound_data');
+      const bin = atob(d.data);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      if (SOUND.url) URL.revokeObjectURL(SOUND.url);
+      SOUND.url = URL.createObjectURL(new Blob([bytes], { type: d.mime }));
+      SOUND.rev = S.customSoundRev;
+    }
+    const a = new Audio(SOUND.url);
+    a.volume = vol;
+    await a.play();
+  }
+
   /* ------------------------------------------------------- bildirim köprüsü */
   // WhatsApp Web bildirimleri tarayıcı Notification API'siyle gösterir. Burada onu
   // Windows bildirimine yönlendiriyoruz; izin her zaman "verildi" görünür.
@@ -2406,6 +2468,7 @@
       sendScheduled: (item) => { sendScheduled(item); },
       schedulesChanged: () => { refreshGhosts(true); refreshAll(); },
       win: setWin,
+      playSound: (kind) => { playSound(kind).catch((e) => note('sound', e && e.message)); },
       mediaDownloaded: (ok) => { if (MEDIA.docWait) MEDIA.docWait(!!ok); },
       version: BOOT.version,
     }),

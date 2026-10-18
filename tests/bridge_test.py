@@ -34,6 +34,7 @@ window.__TAURI_INTERNALS__ = {
       if (a === 'update') { const it = window.__sched.find((i) => i.id === d.id); it.text = d.text; it.due = d.due; return Promise.resolve(it); }
       return Promise.resolve(null);
     }
+    if (cmd === 'sound_data') return Promise.resolve({ mime: 'audio/wav', data: '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' });
     if (cmd === 'wa_media') {
       if (args.action === 'save') { window.__saved = (window.__saved || []).concat([{ name: args.data.name, chat: args.data.chat, size: args.data.data.length }]); return Promise.resolve('C:/x/' + args.data.name); }
       return Promise.resolve(null);
@@ -66,7 +67,7 @@ def css(page, sel, prop):
 
 
 with sync_playwright() as p:
-    browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM") or None, args=["--no-sandbox"])
+    browser = p.chromium.launch(executable_path=os.environ.get("CHROMIUM") or None, args=["--autoplay-policy=no-user-gesture-required", "--no-sandbox"])
     page = browser.new_page(viewport={"width": 1100, "height": 760})
     errors = []
     page.on("pageerror", lambda e: errors.append(str(e)))
@@ -522,6 +523,18 @@ with sync_playwright() as p:
     page.evaluate("""() => { const s = JSON.parse(JSON.stringify(window.__WAP_BOOT__.settings)); s.lang = 'tr'; window.__wap.apply(s); }""")
     page.wait_for_timeout(300)
     check("Türkçeye geri döndü", page.evaluate("document.querySelector('.wap-cap').title") == "Alta al")
+
+    # --- bildirim sesi
+    page.evaluate("""() => { const s = JSON.parse(JSON.stringify(window.__WAP_BOOT__.settings)); s.notifySound = 'custom'; s.customSoundRev = 7; s.notifyVolume = 50; window.__wap.apply(s); }""")
+    before = len(page.evaluate("window.__calls"))
+    page.evaluate("window.__wap.playSound('pop'); window.__wap.playSound('drop'); window.__wap.playSound('chime')")
+    page.evaluate("window.__wap.playSound()")
+    page.wait_for_timeout(400)
+    page.evaluate("window.__wap.playSound()")
+    page.wait_for_timeout(400)
+    fetched = [c for c in page.evaluate("window.__calls")[before:] if c[0] == "sound_data"]
+    errs = [e for e in page.evaluate("window.__wap.diagnose()").get("errors", []) if "sound" in json.dumps(e)]
+    check("bildirim sesleri çalıyor (yerleşik + özel), özel ses bir kez alınıyor", len(fetched) == 1 and not errs, f"{len(fetched)} {errs}")
 
     check("tanılamadan sonra tema yerinde", page.evaluate("document.adoptedStyleSheets.length") >= 4)
     check("sayfa hatası yok", not errors, " | ".join(errors[:5]))

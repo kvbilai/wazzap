@@ -19,6 +19,9 @@ fn main() {
             "theme_import",
             "update_status",
             "update_install",
+            "sound_pick",
+            "sound_data",
+            "notify_test",
         ]),
     ))
     .expect("tauri-build başarısız");

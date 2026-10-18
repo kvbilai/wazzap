@@ -113,6 +113,10 @@ sohbeti yukarı kaydırıp eski medyayı da getirir.
 
 Bildirime tıklayınca Wazzap? öne gelir ve o sohbet açılır.
 
+Bildirim sesi Ayarlar → Masaüstü'nden seçilir: Windows sesleri, uygulamanın kendi üç sesi (Pop, Damla,
+Zil), kendi ses dosyan (en fazla 3 MB) ya da sessiz. Uygulamanın sesleri ve özel dosya için ses düzeyi
+ayarlanabilir; "Dene" örnek bir bildirim gösterir.
+
 ## Güncelleme
 
 Kurulum dosyasıyla kurulan uygulama GitHub'daki son sürüme birkaç saatte bir bakar; yeni sürüm

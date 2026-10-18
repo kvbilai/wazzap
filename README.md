@@ -50,6 +50,8 @@ updates from the project folder instead of GitHub, which is handy for developmen
   late are not sent automatically.
 - **Media collector** (Ctrl+Shift+M): images, videos and documents of the open chat in tabs; save
   selected or all to `Downloads\Wazzap\<chat>` at full resolution.
+- **Notification sound:** Windows sounds, three built-in sounds (Pop, Drop, Chime), your own audio
+  file or silent, with a volume slider (Settings → Desktop).
 - **Desktop integration:** taskbar unread badge, clickable notifications that open the chat, tray,
   global show / hide shortcut (Ctrl+Shift+Space), start with Windows, zoom.
 

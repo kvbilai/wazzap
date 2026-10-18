@@ -29,6 +29,14 @@ const WA_URL: &str = "https://web.whatsapp.com/";
 const MAIN: &str = "main";
 const SETTINGS_WIN: &str = "settings";
 const TRAY: &str = "tray";
+/// WebView2 başlatma seçenekleri. Wry'nin varsayılanları korunur; bildirim sesi pencere
+/// odakta değilken de çalabilsin diye otomatik oynatma kısıtı kaldırılır. İki pencere aynı
+/// veri klasörünü paylaştığı için ikisine de aynı seçenekler verilmeli.
+const BROWSER_ARGS: &str =
+    "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
+/// Özel bildirim sesi dosyasının adı (veri klasöründe, uzantısıyla).
+const SOUND_FILE: &str = "bildirim-sesi";
+const SOUND_MAX: u64 = 3 * 1024 * 1024;
 const TOGGLE_SHORTCUT: &str = "ctrl+shift+space";
 
 const TRAY_PNG: &[u8] = include_bytes!("../icons/32x32.png");
@@ -143,10 +151,25 @@ fn notify(app: &AppHandle, title: &str, body: &str, click: Click) {
 /// Windows'ta tıklanabilir bildirim; tıklanınca `click` çalışır.
 #[cfg(windows)]
 fn notify_now(app: &AppHandle, title: &str, body: &str, click: Click) {
-    use tauri_winrt_notification::Toast;
+    use tauri_winrt_notification::{Sound, Toast};
     let id = app.config().identifier.clone();
     let handle = app.clone();
-    let toast = Toast::new(&id).title(title).text1(body).on_activated(move |_action| {
+    let sound = state(app).snapshot().notify_sound;
+    let win_sound = match sound.as_str() {
+        "windows" => Some(Sound::Default),
+        "win-im" => Some(Sound::IM),
+        "win-mail" => Some(Sound::Mail),
+        "win-sms" => Some(Sound::SMS),
+        "win-reminder" => Some(Sound::Reminder),
+        _ => None,
+    };
+    // Uygulamanın kendi sesleri ve özel dosya WhatsApp sayfasında çalınır; bildirim sessiz kalır.
+    if matches!(sound.as_str(), "pop" | "drop" | "chime" | "custom") {
+        if let Some(w) = main_window(app) {
+            let _ = w.eval("window.__wap && window.__wap.playSound();");
+        }
+    }
+    let toast = Toast::new(&id).title(title).text1(body).sound(win_sound).on_activated(move |_action| {
         let h = handle.clone();
         let c = click.clone();
         let _ = handle.run_on_main_thread(move || handle_click(&h, &c));
@@ -417,6 +440,7 @@ fn open_settings(app: &AppHandle) {
         return;
     }
     let _ = WebviewWindowBuilder::new(app, SETTINGS_WIN, WebviewUrl::App("index.html".into()))
+        .additional_browser_args(BROWSER_ARGS)
         .title(format!("Wazzap? · {}", t(app, "Ayarlar", &[])))
         .inner_size(1120.0, 760.0)
         .min_inner_size(720.0, 520.0)
@@ -1227,6 +1251,84 @@ fn spawn_update(_dir: &std::path::Path, _log_path: &std::path::Path) -> Result<s
     Err("Güncelleme yalnızca Windows'ta".into())
 }
 
+/// Özel bildirim sesi seçer: dosyayı veri klasörüne kopyalar ve sesi "custom" yapar.
+#[tauri::command]
+async fn sound_pick(app: AppHandle) -> Result<Settings, String> {
+    sound_pick_inner(app.clone()).await.map_err(|e| tx_err(&app, &e))
+}
+
+async fn sound_pick_inner(app: AppHandle) -> Result<Settings, String> {
+    use tauri_plugin_dialog::DialogExt;
+    let picked = app
+        .dialog()
+        .file()
+        .set_title(t(&app, "Bildirim sesi seç", &[]))
+        .add_filter(t(&app, "Ses dosyası", &[]), &["mp3", "wav", "ogg", "m4a", "aac", "flac", "opus"])
+        .blocking_pick_file();
+    let Some(fp) = picked else { return Ok(state(&app).snapshot()) };
+    let path = fp.into_path().map_err(|e| e.to_string())?;
+    let size = std::fs::metadata(&path).map(|m| m.len()).map_err(|e| format!("Okunamadı: {e}"))?;
+    if size > SOUND_MAX {
+        return Err("Ses dosyası en fazla 3 MB olabilir".into());
+    }
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let st = state(&app);
+    remove_custom_sounds(&st.data_dir);
+    let dest = st.data_dir.join(format!("{SOUND_FILE}.{ext}"));
+    std::fs::copy(&path, &dest).map_err(|e| format!("Yazılamadı: {e}"))?;
+    {
+        let mut s = st.settings.lock().unwrap();
+        s.notify_sound = "custom".into();
+        s.custom_sound_name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        s.custom_sound_rev = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(1);
+    }
+    st.save();
+    push_to_page(&app);
+    log(&app, &format!("özel bildirim sesi seçildi (.{ext}, {size} bayt)"));
+    Ok(st.snapshot())
+}
+
+fn custom_sound_path(dir: &std::path::Path) -> Option<PathBuf> {
+    std::fs::read_dir(dir).ok()?.flatten().map(|e| e.path()).find(|p| {
+        p.file_stem().map(|s| s == SOUND_FILE).unwrap_or(false) && p.is_file()
+    })
+}
+
+fn remove_custom_sounds(dir: &std::path::Path) {
+    while let Some(p) = custom_sound_path(dir) {
+        if std::fs::remove_file(&p).is_err() {
+            break;
+        }
+    }
+}
+
+/// Özel bildirim sesini sayfaya verir: { mime, data (base64) }.
+#[tauri::command]
+fn sound_data(app: AppHandle) -> Result<serde_json::Value, String> {
+    use base64::Engine as _;
+    let path = custom_sound_path(&state(&app).data_dir).ok_or("Özel ses yok")?;
+    let bytes = std::fs::read(&path).map_err(|e| e.to_string())?;
+    let ext = path.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    let mime = match ext.as_str() {
+        "mp3" => "audio/mpeg",
+        "wav" => "audio/wav",
+        "ogg" | "opus" => "audio/ogg",
+        "m4a" | "aac" => "audio/mp4",
+        "flac" => "audio/flac",
+        _ => "application/octet-stream",
+    };
+    Ok(serde_json::json!({ "mime": mime, "data": base64::engine::general_purpose::STANDARD.encode(bytes) }))
+}
+
+/// Ayarlar penceresinden bildirim sesini denemek için örnek bildirim.
+#[tauri::command]
+fn notify_test(app: AppHandle) {
+    notify(&app, "Wazzap?", &t(&app, "Bildirim sesi böyle duyulacak", &[]), Click::Show);
+}
+
 #[tauri::command]
 fn update_status(app: AppHandle) -> serde_json::Value {
     check_update(&app, false);
@@ -1357,6 +1459,7 @@ fn open_external(url: &Url) {
 fn build_main(app: &AppHandle, s: &Settings) -> tauri::Result<WebviewWindow> {
     let url: Url = WA_URL.parse().expect("geçerli adres");
     let w = WebviewWindowBuilder::new(app, MAIN, WebviewUrl::External(url))
+        .additional_browser_args(BROWSER_ARGS)
         .title("Wazzap?")
         .decorations(false)
         .inner_size(1100.0, 760.0)
@@ -1595,7 +1698,10 @@ fn main() {
             theme_export,
             theme_import,
             update_status,
-            update_install
+            update_install,
+            sound_pick,
+            sound_data,
+            notify_test
         ])
         .setup(move |app| {
             let handle = app.handle().clone();

@@ -18,6 +18,9 @@
     "allow-theme-export",
     "allow-theme-import",
     "allow-update-status",
-    "allow-update-install"
+    "allow-update-install",
+    "allow-sound-pick",
+    "allow-sound-data",
+    "allow-notify-test"
   ]
 }

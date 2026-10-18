@@ -72,6 +72,12 @@ const EN: &[(&str, &str)] = &[
     ("Güncelleme zaten sürüyor", "An update is already running"),
     ("PowerShell başlatılamadı", "Could not start PowerShell"),
     ("Güncelleme yalnızca Windows'ta", "Updates only work on Windows"),
+    // bildirim sesi
+    ("Bildirim sesi seç", "Choose a notification sound"),
+    ("Ses dosyası", "Audio file"),
+    ("Ses dosyası en fazla 3 MB olabilir", "The audio file can be at most 3 MB"),
+    ("Özel ses yok", "No custom sound"),
+    ("Bildirim sesi böyle duyulacak", "This is how notifications will sound"),
     // zamanlı mesaj kayıtları
     ("Sohbet adı okunamadı", "Could not read the chat name"),
     ("Mesaj boş", "Message is empty"),

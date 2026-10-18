@@ -158,6 +158,14 @@ pub struct Settings {
     pub saved_themes: Vec<Theme>,
     /// Arayüz dili: "auto" (Windows'un diline göre) / "tr" / "en".
     pub language: String,
+    /// Bildirim sesi: Windows sesleri ("windows", "win-im", "win-mail", "win-sms", "win-reminder"),
+    /// uygulamanın kendi sesleri ("pop", "drop", "chime"), "custom" (kullanıcının dosyası) ya da "none".
+    pub notify_sound: String,
+    /// Uygulamanın kendi sesleri ve özel dosya için ses düzeyi, yüzde.
+    pub notify_volume: u32,
+    /// Özel ses dosyasının adı (yalnızca gösterim için) ve sürümü (sayfa önbelleği için).
+    pub custom_sound_name: String,
+    pub custom_sound_rev: u64,
     /// Çözülmüş dil ("tr" / "en"); kaydedilmez, sayfaya ve ayarlar penceresine gider.
     #[serde(skip_deserializing)]
     pub lang: String,
@@ -184,10 +192,19 @@ impl Default for Settings {
             custom_css: String::new(),
             saved_themes: Vec::new(),
             language: "auto".into(),
+            notify_sound: "windows".into(),
+            notify_volume: 80,
+            custom_sound_name: String::new(),
+            custom_sound_rev: 0,
             lang: String::new(),
         }
     }
 }
+
+/// Geçerli bildirim sesi seçenekleri.
+pub const SOUNDS: &[&str] = &[
+    "windows", "win-im", "win-mail", "win-sms", "win-reminder", "pop", "drop", "chime", "custom", "none",
+];
 
 impl Settings {
     /// Geçerli modda pencere her zaman üstte mi.
@@ -221,6 +238,12 @@ impl Settings {
     }
 
     pub fn sanitized(mut self) -> Settings {
+        if !SOUNDS.contains(&self.notify_sound.as_str())
+            || (self.notify_sound == "custom" && self.custom_sound_name.is_empty())
+        {
+            self.notify_sound = "windows".into();
+        }
+        self.notify_volume = self.notify_volume.min(100);
         if !matches!(self.language.as_str(), "auto" | "tr" | "en") {
             self.language = "auto".into();
         }
